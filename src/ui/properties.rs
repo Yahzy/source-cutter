@@ -1,8 +1,9 @@
-//! Right panel: active tool settings, selected brush, scene outline.
+//! Right panel (Noggit-like): tool settings, grid, selection, scene outline.
 
-use eframe::egui::{self, RichText, Ui};
+use eframe::egui::{self, Align, Layout, RichText, Ui};
 use glam::Vec3;
 
+use super::theme;
 use crate::editor::Editor;
 use crate::math::Aabb;
 use crate::scene::SelectMode;
@@ -10,50 +11,87 @@ use crate::tools::ToolKind;
 use crate::units;
 
 pub fn show(ui: &mut Ui, editor: &mut Editor) {
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        section(ui, "Tool", |ui| tool_settings(ui, editor));
-        section(ui, "Selection", |ui| selection(ui, editor));
-        section(ui, "Scene", |ui| outline(ui, editor));
+    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        section(ui, editor.tools.active.label(), |ui| tool_settings(ui, editor));
+        section(ui, "Grid", |ui| grid_settings(ui, editor));
+        let title = if editor.edit_context().is_some() { "Edit Selection" } else { "Selection" };
+        section(ui, title, |ui| selection(ui, editor));
+        scene_outline(ui, editor);
     });
 }
 
+/// Centered bold title, then the content, then a thin separator.
 fn section(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
+    ui.add_space(8.0);
+    ui.vertical_centered(|ui| ui.label(RichText::new(title).strong().size(13.0)));
     ui.add_space(6.0);
-    ui.vertical_centered(|ui| ui.label(RichText::new(title).strong().size(14.0)));
-    ui.add_space(4.0);
     add_contents(ui);
-    ui.add_space(6.0);
+    ui.add_space(8.0);
     ui.separator();
 }
 
+fn hint(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).small().color(theme::TEXT_WEAK));
+}
+
+/// "Label:" on the left, widget on the right (Noggit settings rows).
+fn row<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.horizontal(|ui| {
+        ui.label(format!("{label}:"));
+        ui.with_layout(Layout::right_to_left(Align::Center), add).inner
+    })
+    .inner
+}
+
+// --- Tool ------------------------------------------------------------------------
+
 fn tool_settings(ui: &mut Ui, editor: &mut Editor) {
     match editor.tools.active {
-        ToolKind::Select => {
-            ui.label("Click an object to select it.\nShift+click to add to the selection.");
-        }
+        ToolKind::Select => hint(ui, "Click to select, Shift+click to add.\nTab: Edit Mode, 1/2/3: vertex/edge/face."),
         ToolKind::Move => {
-            ui.label("Drag an arrow to move along an axis,\na square to move on a plane,\nthe circle to move on the grid plane.");
-            ui.small("Snaps the selection to the grid.");
+            hint(ui, "Arrow: move along an axis. Square: on a plane.\nCircle: on the grid plane.");
+            ui.checkbox(&mut editor.grid.snap, "Snap to grid");
         }
         ToolKind::Scale => {
-            ui.label("Drag a handle to resize the selection.\nThe opposite side stays in place.");
-            ui.small("The moved side snaps to the grid.");
+            hint(ui, "Drag a handle to resize the selection.\nThe opposite side stays in place.");
+            ui.checkbox(&mut editor.grid.snap, "Snap to grid");
         }
         ToolKind::Block => {
-            ui.label("Drag on the grid to create a block.");
-            ui.horizontal(|ui| {
-                ui.label("Height");
-                ui.add(
-                    egui::DragValue::new(&mut editor.tools.block.height)
-                        .speed(1.0)
-                        .range(1.0..=units::MAP_HALF_EXTENT * 2.0)
-                        .suffix(" u"),
-                );
+            hint(ui, "Drag on the grid to create a block.");
+            ui.add_space(4.0);
+            let height = &mut editor.tools.block.height;
+            row(ui, "Height", |ui| {
+                ui.add(egui::DragValue::new(height).speed(1.0).range(1.0..=units::MAP_HALF_EXTENT * 2.0).suffix(" u"))
             });
-            ui.small(units::format_length(editor.tools.block.height));
+            ui.spacing_mut().slider_width = ui.available_width();
+            ui.add(egui::Slider::new(height, 1.0..=1024.0).logarithmic(true).show_value(false).step_by(1.0));
+            hint(ui, &units::format_length(*height));
         }
     }
 }
+
+// --- Grid ------------------------------------------------------------------------
+
+fn grid_settings(ui: &mut Ui, editor: &mut Editor) {
+    // Hammer grid sizes as a two-column radio grid (like Noggit's brush types).
+    let sizes: Vec<u32> = (0..10).map(|i| 1 << i).collect();
+    egui::Grid::new("grid_sizes").num_columns(2).spacing([24.0, 2.0]).show(ui, |ui| {
+        for pair in sizes.chunks(2) {
+            for &size in pair {
+                if ui.radio(editor.grid.size() == size, format!("{size} u")).clicked() {
+                    editor.grid.set_size(size);
+                }
+            }
+            ui.end_row();
+        }
+    });
+    ui.add_space(4.0);
+    ui.checkbox(&mut editor.grid.snap, "Snap to grid");
+    ui.checkbox(&mut editor.grid.visible, "Show grid");
+    ui.checkbox(&mut editor.view.show_player_reference, "Player reference (32×32×72)");
+}
+
+// --- Selection -------------------------------------------------------------------
 
 fn selection(ui: &mut Ui, editor: &mut Editor) {
     if let Some(mode) = editor.edit_context() {
@@ -64,11 +102,11 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
     let count = editor.scene.selection.objects.len();
 
     let Some(object) = editor.scene.active() else {
-        ui.weak("Nothing selected");
+        hint(ui, "Nothing selected");
         return;
     };
     if count > 1 {
-        ui.weak(format!("{count} objects selected, editing the active one"));
+        hint(ui, &format!("{count} objects selected, editing the active one"));
     }
 
     // Widgets edit local copies; the scene is only modified after a history checkpoint.
@@ -80,36 +118,39 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
     let mut size = bounds.size();
     let mut began_edit = false;
 
-    ui.horizontal(|ui| {
-        ui.label("Name");
-        began_edit |= ui.text_edit_singleline(&mut name).gained_focus();
+    row(ui, "Name", |ui| {
+        began_edit |= ui.add(egui::TextEdit::singleline(&mut name).desired_width(140.0)).gained_focus();
     });
+    ui.add_space(2.0);
 
-    egui::Grid::new("object_transform").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
+    egui::Grid::new("object_transform").num_columns(4).spacing([4.0, 4.0]).show(ui, |ui| {
         ui.label("");
-        ui.label("X");
-        ui.label("Y");
-        ui.label("Z");
+        for axis in ["X", "Y", "Z"] {
+            ui.vertical_centered(|ui| ui.label(RichText::new(axis).color(theme::TEXT_WEAK)));
+        }
         ui.end_row();
 
-        ui.label("Origin");
+        ui.label("Origin:");
         began_edit |= vec3_edit(ui, &mut origin, grid_step, None);
         ui.end_row();
 
-        ui.label("Size");
+        ui.label("Size:");
         began_edit |= vec3_edit(ui, &mut size, grid_step, Some(0.0));
         ui.end_row();
     });
 
-    ui.small(format!(
-        "{:.2} × {:.2} × {:.2} m  ·  {vert_count} verts, {face_count} faces",
-        size.x * units::METERS_PER_UNIT,
-        size.y * units::METERS_PER_UNIT,
-        size.z * units::METERS_PER_UNIT,
-    ));
+    hint(
+        ui,
+        &format!(
+            "{:.2} × {:.2} × {:.2} m  ·  {vert_count} verts, {face_count} faces",
+            size.x * units::METERS_PER_UNIT,
+            size.y * units::METERS_PER_UNIT,
+            size.z * units::METERS_PER_UNIT,
+        ),
+    );
 
     ui.add_space(4.0);
-    let delete = ui.button("🗑 Delete").clicked();
+    let delete = ui.button("Delete").on_hover_text("Del / X").clicked();
 
     // --- Apply ---
     if began_edit {
@@ -132,16 +173,18 @@ fn edit_selection(ui: &mut Ui, editor: &mut Editor, mode: SelectMode) {
     let Some(object) = editor.scene.active() else { return };
     let selected = editor.scene.selection.elements.resolve(&object.mesh, mode);
 
-    ui.label(format!("Editing {}", object.name));
-    ui.small(format!(
-        "{} verts, {} edges, {} faces selected",
-        selected.verts.len(),
-        selected.edges.len(),
-        selected.faces.len()
-    ));
+    row(ui, "Object", |ui| ui.label(RichText::new(&object.name).strong()));
+    hint(
+        ui,
+        &format!(
+            "{} verts, {} edges, {} faces selected",
+            selected.verts.len(),
+            selected.edges.len(),
+            selected.faces.len()
+        ),
+    );
     if selected.verts.is_empty() {
-        ui.weak("Click to select, Shift+click to add.
-1 / 2 / 3: vertex / edge / face.");
+        hint(ui, "Click to select, Shift+click to add.\n1 / 2 / 3: vertex / edge / face.");
         return;
     }
 
@@ -150,8 +193,9 @@ fn edit_selection(ui: &mut Ui, editor: &mut Editor, mode: SelectMode) {
     let mut new_median = median;
     let mut began_edit = false;
 
-    egui::Grid::new("edit_median").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
-        ui.label("Median");
+    ui.add_space(2.0);
+    egui::Grid::new("edit_median").num_columns(4).spacing([4.0, 4.0]).show(ui, |ui| {
+        ui.label("Median:");
         began_edit = vec3_edit(ui, &mut new_median, editor.grid.size() as f64, None);
         ui.end_row();
     });
@@ -177,29 +221,35 @@ fn vec3_edit(ui: &mut Ui, v: &mut Vec3, speed: f64, min: Option<f32>) -> bool {
         if let Some(min) = min {
             drag = drag.range(min..=f32::MAX);
         }
-        let response = ui.add_sized([58.0, 18.0], drag);
+        let response = ui.add_sized([56.0, 18.0], drag);
         began |= response.drag_started() || response.gained_focus();
     }
     began
 }
 
-fn outline(ui: &mut Ui, editor: &mut Editor) {
-    if editor.scene.objects().is_empty() {
-        ui.weak("Empty scene");
-        return;
-    }
-    let mut clicked = None;
-    for object in editor.scene.objects() {
-        let selected = editor.scene.selection.contains(object.id);
-        if ui.selectable_label(selected, &object.name).clicked() {
-            clicked = Some(object.id);
+// --- Scene -------------------------------------------------------------------------
+
+fn scene_outline(ui: &mut Ui, editor: &mut Editor) {
+    ui.add_space(6.0);
+    let title = format!("Scene ({})", editor.scene.objects().len());
+    egui::CollapsingHeader::new(RichText::new(title).strong()).id_salt("scene_outline").default_open(true).show(ui, |ui| {
+        if editor.scene.objects().is_empty() {
+            hint(ui, "Empty scene. Use the Block tool (Shift+B).");
+            return;
         }
-    }
-    if let Some(id) = clicked {
-        if ui.input(|i| i.modifiers.shift) {
-            editor.scene.selection.toggle(id);
-        } else {
-            editor.scene.selection.set(id);
+        let mut clicked = None;
+        for object in editor.scene.objects() {
+            let selected = editor.scene.selection.contains(object.id);
+            if ui.selectable_label(selected, &object.name).clicked() {
+                clicked = Some(object.id);
+            }
         }
-    }
+        if let Some(id) = clicked {
+            if ui.input(|i| i.modifiers.shift) {
+                editor.scene.selection.toggle(id);
+            } else {
+                editor.scene.selection.set(id);
+            }
+        }
+    });
 }

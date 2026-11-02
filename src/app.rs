@@ -46,30 +46,35 @@ impl eframe::App for SourceCutterApp {
         self.editor.validate();
 
         let editor = &mut self.editor;
-        let dark_frame = egui::Frame::side_top_panel(ui.style()).fill(ui::theme::PANEL_DARK);
+        let theme_frame = |fill, x: i8, y: i8| egui::Frame::new().fill(fill).inner_margin(egui::Margin::symmetric(x, y));
 
-        egui::Panel::top("menu_bar").show(ui, |ui| ui::menu_bar::show(ui, editor));
+        egui::Panel::top("menu_bar")
+            .frame(theme_frame(ui::theme::PANEL, 6, 2))
+            .show(ui, |ui| ui::menu_bar::show(ui, editor));
 
         egui::Panel::bottom("status_bar")
-            .frame(dark_frame)
+            .frame(theme_frame(ui::theme::PANEL_DARK, 8, 3))
             .show(ui, |ui| ui::status_bar::show(ui, editor));
 
         egui::Panel::left("tool_strip")
             .resizable(false)
-            .exact_size(46.0)
-            .frame(dark_frame)
+            .exact_size(44.0)
+            .frame(theme_frame(ui::theme::PANEL_DARK, 4, 4))
             .show(ui, |ui| ui::tool_strip::show(ui, editor, &self.icons));
 
         egui::Panel::right("properties")
-            .default_size(270.0)
+            .default_size(250.0)
             .min_size(220.0)
+            .frame(theme_frame(ui::theme::PANEL, 12, 4))
             .show(ui, |ui| ui::properties::show(ui, editor));
 
-        egui::Panel::top("toolbar").show(ui, |ui| ui::toolbar::show(ui, editor));
-
-        egui::CentralPanel::default()
+        let viewport_rect = egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ui, |ui| viewport::show(ui, editor));
+            .show(ui, |ui| viewport::show(ui, editor))
+            .inner;
+
+        // Floating toolbar drawn over the viewport (separate layer, so it gets the clicks).
+        ui::toolbar::show(ui.ctx(), viewport_rect, editor);
     }
 }
 

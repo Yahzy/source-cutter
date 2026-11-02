@@ -79,7 +79,13 @@ src/
 │   ├── draw_scene.rs    Objects, Edit Mode overlay, previews
 │   ├── visibility.rs    Occlusion tests for Edit Mode
 │   └── nav_gizmo.rs     Blender-style compass
-└── ui/                  Menus, toolbar (mode selector), tool strip, properties, status bar, theme
+└── ui/                  Interface around the viewport
+    ├── toolbar.rs       Floating toolbar over the viewport (modes, grid, view)
+    ├── tool_strip.rs    Left tool strip (icon buttons)
+    ├── properties.rs    Right panel: tool settings, grid, selection, scene
+    ├── icons.rs         Embedded PNG icons (assets/icons)
+    └── ...              Menu bar, status bar, theme
+assets/icons/            Tool icons (white on transparent, tinted at runtime)
 ```
 
 ### Adding a tool

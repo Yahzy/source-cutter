@@ -26,7 +26,8 @@ use nav_gizmo::GizmoAction;
 
 const BACKGROUND: Color32 = Color32::from_rgb(38, 39, 43);
 
-pub fn show(ui: &mut Ui, editor: &mut Editor) {
+/// Draws the viewport and returns its screen rectangle.
+pub fn show(ui: &mut Ui, editor: &mut Editor) -> Rect {
     let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, BACKGROUND);
@@ -61,6 +62,7 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
         Some(GizmoAction::ToggleProjection) => editor.camera.toggle_projection(),
         None => {}
     }
+    rect
 }
 
 fn handle_navigation(ui: &Ui, response: &Response, editor: &mut Editor, rect: Rect) {
@@ -130,7 +132,8 @@ fn draw_overlay_text(painter: &eframe::egui::Painter, rect: Rect, editor: &Edito
         editor.tools.active.label(),
     );
     painter.text(
-        rect.left_top() + vec2(10.0, 8.0),
+        // Below the floating toolbar.
+        rect.left_top() + vec2(12.0, crate::ui::toolbar::HEIGHT + 18.0),
         Align2::LEFT_TOP,
         text,
         FontId::proportional(13.0),

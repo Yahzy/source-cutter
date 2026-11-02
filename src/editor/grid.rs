@@ -57,6 +57,12 @@ impl GridSettings {
         self.size
     }
 
+    /// Sets the size, rounded down to a power of two within Hammer's range.
+    pub fn set_size(&mut self, size: u32) {
+        let clamped = size.clamp(GRID_MIN, GRID_MAX);
+        self.size = 1 << (31 - clamped.leading_zeros());
+    }
+
     /// `]` in Hammer.
     pub fn increase(&mut self) {
         self.size = (self.size * 2).min(GRID_MAX);
