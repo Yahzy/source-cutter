@@ -62,10 +62,25 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
         });
 
         ui.menu_button("Help", |ui| {
-            ui.label("Middle mouse: orbit");
-            ui.label("Shift + middle mouse: pan");
-            ui.label("Wheel: zoom");
-            ui.label("[ / ] : grid size");
+            let lines = [
+                ("Middle mouse", "orbit"),
+                ("Shift + middle mouse", "pan"),
+                ("Wheel", "zoom"),
+                ("Compass click / 5", "ortho views / toggle"),
+                ("Tab", "Object / Edit Mode"),
+                ("1 / 2 / 3", "vertex / edge / face"),
+                ("G / S", "Move / Scale tool"),
+                ("Shift+S / Shift+B", "Select / Block tool"),
+                ("[ / ]", "grid size"),
+                ("Ctrl+Z / Ctrl+Shift+Z", "undo / redo"),
+            ];
+            egui::Grid::new("help_keys").num_columns(2).show(ui, |ui| {
+                for (key, action) in lines {
+                    ui.monospace(key);
+                    ui.label(action);
+                    ui.end_row();
+                }
+            });
         });
     });
 }
