@@ -103,7 +103,7 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
         clicked: response.clicked() && !over_gizmo,
         shift,
     };
-    editor.tools.update(&input, &mut editor.scene);
+    editor.tools.update(&input, &mut editor.scene, &mut editor.history);
 }
 
 fn draw_overlay_text(painter: &eframe::egui::Painter, rect: Rect, editor: &Editor) {

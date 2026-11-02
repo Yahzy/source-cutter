@@ -9,6 +9,7 @@ pub use select::SelectTool;
 
 use glam::Vec3;
 
+use crate::editor::History;
 use crate::math::Ray;
 use crate::scene::Scene;
 
@@ -81,10 +82,10 @@ impl Tools {
         }
     }
 
-    pub fn update(&mut self, input: &ToolInput, scene: &mut Scene) {
+    pub fn update(&mut self, input: &ToolInput, scene: &mut Scene, history: &mut History) {
         match self.active {
             ToolKind::Select => self.select.update(input, scene),
-            ToolKind::Block => self.block.update(input, scene),
+            ToolKind::Block => self.block.update(input, scene, history),
         }
     }
 

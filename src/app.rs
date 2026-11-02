@@ -56,6 +56,15 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
     }
 
     ctx.input_mut(|i| {
+        // Undo / redo (Ctrl+Shift+Z must be checked before Ctrl+Z).
+        if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z))
+            || i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Y))
+        {
+            editor.redo();
+        }
+        if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)) {
+            editor.undo();
+        }
         if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::N)) {
             editor.new_scene();
         }

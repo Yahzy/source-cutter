@@ -15,6 +15,13 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
         });
 
         ui.menu_button("Edit", |ui| {
+            if ui.add_enabled(editor.history.can_undo(), egui::Button::new("Undo              Ctrl+Z")).clicked() {
+                editor.undo();
+            }
+            if ui.add_enabled(editor.history.can_redo(), egui::Button::new("Redo              Ctrl+Shift+Z")).clicked() {
+                editor.redo();
+            }
+            ui.separator();
             let has_selection = !editor.scene.selection.objects.is_empty();
             if ui.add_enabled(has_selection, egui::Button::new("Delete            Del")).clicked() {
                 editor.delete_selected();

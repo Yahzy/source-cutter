@@ -2,9 +2,11 @@
 
 mod camera;
 mod grid;
+mod history;
 
 pub use camera::OrbitCamera;
 pub use grid::GridSettings;
+pub use history::History;
 
 use glam::Vec3;
 
@@ -27,6 +29,7 @@ impl Default for ViewOptions {
 #[derive(Default)]
 pub struct Editor {
     pub scene: Scene,
+    pub history: History,
     pub camera: OrbitCamera,
     pub grid: GridSettings,
     pub tools: Tools,
@@ -37,12 +40,27 @@ pub struct Editor {
 
 impl Editor {
     pub fn new_scene(&mut self) {
-        self.scene = Scene::default();
         self.tools.cancel();
+        self.history.checkpoint(&self.scene);
+        self.scene = Scene::default();
     }
 
     pub fn delete_selected(&mut self) {
+        if self.scene.selection.objects.is_empty() {
+            return;
+        }
+        self.history.checkpoint(&self.scene);
         self.scene.delete_selected();
+    }
+
+    pub fn undo(&mut self) {
+        self.tools.cancel();
+        self.history.undo(&mut self.scene);
+    }
+
+    pub fn redo(&mut self) {
+        self.tools.cancel();
+        self.history.redo(&mut self.scene);
     }
 
     pub fn select_all(&mut self) {

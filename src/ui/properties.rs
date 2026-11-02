@@ -51,7 +51,7 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
     let grid_step = editor.grid.size() as f64;
     let count = editor.scene.selection.objects.len();
 
-    let Some(object) = editor.scene.active_mut() else {
+    let Some(object) = editor.scene.active() else {
         ui.weak("Nothing selected");
         return;
     };
@@ -59,15 +59,19 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
         ui.weak(format!("{count} objects selected, editing the active one"));
     }
 
-    ui.horizontal(|ui| {
-        ui.label("Name");
-        ui.text_edit_singleline(&mut object.name);
-    });
-
-    // Edited as origin (min corner) + size, which is more natural than min/max.
+    // Widgets edit local copies; the scene is only modified after a history checkpoint.
+    let mut name = object.name.clone();
     let bounds = object.mesh.bounds();
+    let (vert_count, face_count) = (object.mesh.vertices.len(), object.mesh.faces.len());
+    // Edited as origin (min corner) + size, which is more natural than min/max.
     let mut origin = bounds.min;
     let mut size = bounds.size();
+    let mut began_edit = false;
+
+    ui.horizontal(|ui| {
+        ui.label("Name");
+        began_edit |= ui.text_edit_singleline(&mut name).gained_focus();
+    });
 
     egui::Grid::new("object_transform").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
         ui.label("");
@@ -77,43 +81,52 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
         ui.end_row();
 
         ui.label("Origin");
-        vec3_edit(ui, &mut origin, grid_step, None);
+        began_edit |= vec3_edit(ui, &mut origin, grid_step, None);
         ui.end_row();
 
         ui.label("Size");
-        vec3_edit(ui, &mut size, grid_step, Some(0.0));
+        began_edit |= vec3_edit(ui, &mut size, grid_step, Some(0.0));
         ui.end_row();
     });
 
-    let new_bounds = Aabb::from_corners(origin, origin + size);
-    if new_bounds != bounds {
-        object.mesh.fit_to_bounds(&new_bounds);
-    }
-
-    let mesh = &object.mesh;
     ui.small(format!(
-        "{:.2} × {:.2} × {:.2} m  ·  {} verts, {} faces",
+        "{:.2} × {:.2} × {:.2} m  ·  {vert_count} verts, {face_count} faces",
         size.x * units::METERS_PER_UNIT,
         size.y * units::METERS_PER_UNIT,
         size.z * units::METERS_PER_UNIT,
-        mesh.vertices.len(),
-        mesh.faces.len(),
     ));
 
     ui.add_space(4.0);
-    if ui.button("🗑 Delete").clicked() {
+    let delete = ui.button("🗑 Delete").clicked();
+
+    // --- Apply ---
+    if began_edit {
+        editor.history.checkpoint(&editor.scene);
+    }
+    if let Some(object) = editor.scene.active_mut() {
+        object.name = name;
+        let new_bounds = Aabb::from_corners(origin, origin + size);
+        if new_bounds != bounds {
+            object.mesh.fit_to_bounds(&new_bounds);
+        }
+    }
+    if delete {
         editor.delete_selected();
     }
 }
 
-fn vec3_edit(ui: &mut Ui, v: &mut Vec3, speed: f64, min: Option<f32>) {
+/// Three drag values. Returns `true` when the user starts editing one of them.
+fn vec3_edit(ui: &mut Ui, v: &mut Vec3, speed: f64, min: Option<f32>) -> bool {
+    let mut began = false;
     for c in [&mut v.x, &mut v.y, &mut v.z] {
         let mut drag = egui::DragValue::new(c).speed(speed * 0.1);
         if let Some(min) = min {
             drag = drag.range(min..=f32::MAX);
         }
-        ui.add_sized([58.0, 18.0], drag);
+        let response = ui.add_sized([58.0, 18.0], drag);
+        began |= response.drag_started() || response.gained_focus();
     }
+    began
 }
 
 fn outline(ui: &mut Ui, editor: &mut Editor) {

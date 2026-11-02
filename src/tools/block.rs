@@ -1,6 +1,7 @@
 use glam::Vec3;
 
 use super::ToolInput;
+use crate::editor::History;
 use crate::math::Aabb;
 use crate::scene::{Mesh, Scene};
 
@@ -19,7 +20,7 @@ impl Default for BlockTool {
 }
 
 impl BlockTool {
-    pub fn update(&mut self, input: &ToolInput, scene: &mut Scene) {
+    pub fn update(&mut self, input: &ToolInput, scene: &mut Scene, history: &mut History) {
         if input.pressed
             && let Some(p) = input.ground
         {
@@ -36,6 +37,7 @@ impl BlockTool {
 
         if input.released {
             if let Some(bounds) = self.preview() {
+                history.checkpoint(scene);
                 let id = scene.add_object("Block", Mesh::cuboid(&bounds));
                 scene.selection.set(id);
             }
