@@ -1,3 +1,4 @@
+mod editor;
 mod math;
 mod scene;
 mod tools;
