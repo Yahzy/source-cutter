@@ -2,10 +2,14 @@
 
 use eframe::egui::{self, Ui};
 
-use crate::editor::Editor;
+use crate::editor::{Editor, EditorMode};
+use crate::scene::SelectMode;
 
 pub fn show(ui: &mut Ui, editor: &mut Editor) {
     ui.horizontal(|ui| {
+        mode_selector(ui, editor);
+        ui.separator();
+
         ui.label("Grid");
         if ui.button("−").on_hover_text("Smaller grid  [").clicked() {
             editor.grid.decrease();
@@ -26,4 +30,35 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
             editor.camera = Default::default();
         }
     });
+}
+
+/// Blender-like header: Object / Edit Mode (Tab) and vertex / edge / face select mode (1, 2, 3).
+fn mode_selector(ui: &mut Ui, editor: &mut Editor) {
+    let mut mode = editor.mode();
+    egui::ComboBox::from_id_salt("editor_mode")
+        .selected_text(mode.label())
+        .width(110.0)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut mode, EditorMode::Object, EditorMode::Object.label());
+            ui.selectable_value(&mut mode, EditorMode::Edit, EditorMode::Edit.label());
+        })
+        .response
+        .on_hover_text("Switch mode (Tab)");
+    if mode != editor.mode() {
+        editor.set_mode(mode);
+    }
+
+    let editing = editor.mode() == EditorMode::Edit;
+    for select_mode in SelectMode::ALL {
+        let selected = editing && editor.select_mode() == select_mode;
+        let button = egui::Button::selectable(selected, select_mode.label());
+        if ui
+            .add_enabled(editing, button)
+            .on_hover_text(format!("{} select ({})", select_mode.label(), select_mode.key()))
+            .on_disabled_hover_text("Available in Edit Mode (Tab)")
+            .clicked()
+        {
+            editor.set_select_mode(select_mode);
+        }
+    }
 }

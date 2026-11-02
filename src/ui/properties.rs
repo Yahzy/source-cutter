@@ -5,6 +5,7 @@ use glam::Vec3;
 
 use crate::editor::Editor;
 use crate::math::Aabb;
+use crate::scene::SelectMode;
 use crate::tools::ToolKind;
 use crate::units;
 
@@ -55,6 +56,10 @@ fn tool_settings(ui: &mut Ui, editor: &mut Editor) {
 }
 
 fn selection(ui: &mut Ui, editor: &mut Editor) {
+    if let Some(mode) = editor.edit_context() {
+        edit_selection(ui, editor, mode);
+        return;
+    }
     let grid_step = editor.grid.size() as f64;
     let count = editor.scene.selection.objects.len();
 
@@ -119,6 +124,48 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
     }
     if delete {
         editor.delete_selected();
+    }
+}
+
+/// Edit Mode: selected element counts and their median point, editable like Blender's N panel.
+fn edit_selection(ui: &mut Ui, editor: &mut Editor, mode: SelectMode) {
+    let Some(object) = editor.scene.active() else { return };
+    let selected = editor.scene.selection.elements.resolve(&object.mesh, mode);
+
+    ui.label(format!("Editing {}", object.name));
+    ui.small(format!(
+        "{} verts, {} edges, {} faces selected",
+        selected.verts.len(),
+        selected.edges.len(),
+        selected.faces.len()
+    ));
+    if selected.verts.is_empty() {
+        ui.weak("Click to select, Shift+click to add.
+1 / 2 / 3: vertex / edge / face.");
+        return;
+    }
+
+    let points: Vec<Vec3> = selected.verts.iter().map(|&v| object.mesh.vertices[v as usize]).collect();
+    let median = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+    let mut new_median = median;
+    let mut began_edit = false;
+
+    egui::Grid::new("edit_median").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
+        ui.label("Median");
+        began_edit = vec3_edit(ui, &mut new_median, editor.grid.size() as f64, None);
+        ui.end_row();
+    });
+
+    if began_edit {
+        editor.history.checkpoint(&editor.scene);
+    }
+    let delta = new_median - median;
+    if delta != Vec3::ZERO
+        && let Some(object) = editor.scene.active_mut()
+    {
+        for &v in &selected.verts {
+            object.mesh.vertices[v as usize] += delta;
+        }
     }
 }
 

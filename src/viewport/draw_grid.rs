@@ -65,7 +65,7 @@ pub fn draw(painter: &Painter, proj: &Projector, camera: &OrbitCamera, grid: &Gr
         }
     }
 
-    draw_map_bounds(painter, proj, u, v);
+    draw_map_bounds(painter, proj, &fade, u, v);
 }
 
 /// Picks the line color depending on its coordinate, like Hammer.
@@ -113,12 +113,10 @@ fn draw_faded_line(painter: &Painter, proj: &Projector, fade: &Fade, a: Vec3, b:
     }
 }
 
-fn draw_map_bounds(painter: &Painter, proj: &Projector, u: Vec3, v: Vec3) {
+fn draw_map_bounds(painter: &Painter, proj: &Projector, fade: &Fade, u: Vec3, v: Vec3) {
     let e = MAP_HALF_EXTENT;
     let corners = [(-e, -e), (e, -e), (e, e), (-e, e)].map(|(a, b)| u * a + v * b);
     for i in 0..4 {
-        if let Some(seg) = proj.segment(corners[i], corners[(i + 1) % 4]) {
-            painter.line_segment(seg, Stroke::new(1.5, MAP_BOUNDS));
-        }
+        draw_faded_line(painter, proj, fade, corners[i], corners[(i + 1) % 4], MAP_BOUNDS);
     }
 }

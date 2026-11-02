@@ -10,10 +10,12 @@ mod draw_grid;
 mod draw_scene;
 mod nav_gizmo;
 mod projector;
+mod visibility;
 
 pub use draw_grid::axis_color;
 pub use draw_scene::{draw_block_preview, draw_wire_box};
 pub use projector::Projector;
+pub use visibility::point_visible;
 
 use eframe::egui::{Align2, Color32, FontId, PointerButton, Rect, Response, Sense, Ui, vec2};
 use glam::Vec3;
@@ -38,11 +40,11 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
     if editor.grid.visible {
         draw_grid::draw(&painter, &proj, &editor.camera, &editor.grid, GridPlane::from_camera(&editor.camera));
     }
-    draw_scene::draw_objects(&painter, &proj, &editor.scene);
+    draw_scene::draw_objects(&painter, &proj, &editor.scene, editor.edit_context());
     if editor.view.show_player_reference {
         draw_scene::draw_player_reference(&painter, &proj, &Editor::player_reference_bounds());
     }
-    editor.tools.draw(&painter, &proj, &editor.scene);
+    editor.tools.draw(&painter, &proj, &editor.scene, editor.edit_context());
     if editor.tools.active == ToolKind::Block {
         if let Some(cursor) = editor.cursor {
             let axes = GridPlane::from_camera(&editor.camera).axes();
@@ -113,14 +115,16 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
         released,
         clicked: response.clicked() && !over_gizmo,
         shift,
+        edit: editor.edit_context(),
     };
     editor.tools.update(&input, &mut editor.scene, &mut editor.history);
 }
 
 fn draw_overlay_text(painter: &eframe::egui::Painter, rect: Rect, editor: &Editor) {
     let text = format!(
-        "{}  ·  Grid {}{}  ·  {}",
+        "{}  ·  {}  ·  Grid {}{}  ·  {}",
         editor.camera.view_name(),
+        editor.mode().label(),
         editor.grid.size(),
         if editor.grid.snap { "" } else { " (snap off)" },
         editor.tools.active.label(),

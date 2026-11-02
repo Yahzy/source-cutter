@@ -3,9 +3,9 @@
 use eframe::egui::{Align2, Color32, FontId, Painter, Shape, Stroke};
 use glam::Vec3;
 
-use super::Projector;
+use super::{Projector, point_visible};
 use crate::math::Aabb;
-use crate::scene::{Object, Scene};
+use crate::scene::{ElementSelection, Object, Scene, SelectMode};
 
 const SELECTED_TINT: Color32 = Color32::from_rgb(230, 80, 70);
 const SELECTED_EDGE: Color32 = Color32::from_rgb(255, 120, 100);
@@ -14,6 +14,11 @@ const PREVIEW_EDGE: Color32 = Color32::from_rgb(255, 230, 120);
 const PLAYER_EDGE: Color32 = Color32::from_rgb(80, 200, 220);
 const CURSOR: Color32 = Color32::from_rgb(255, 255, 255);
 
+// Edit Mode colors (Blender-like).
+const EDIT_BASE: Color32 = Color32::from_rgb(175, 175, 182);
+const EDIT_SELECTED: Color32 = Color32::from_rgb(255, 150, 40);
+const EDIT_WIRE: Color32 = Color32::from_rgb(20, 20, 22);
+
 /// Fixed light direction used for flat shading.
 fn light_dir() -> Vec3 {
     Vec3::new(0.35, 0.25, 0.9).normalize()
@@ -21,19 +26,46 @@ fn light_dir() -> Vec3 {
 
 /// A visible face waiting to be sorted and drawn.
 pub struct FaceDraw {
+    /// Face index in its mesh.
+    pub face: usize,
     pub depth: f32,
     pub points: Vec<Vec3>,
     pub fill: Color32,
     pub edge: Stroke,
 }
 
-pub fn draw_objects(painter: &Painter, proj: &Projector, scene: &Scene) {
+/// Draws every object. In Edit Mode (`edit` is the select mode), the active object
+/// shows its vertices / edges / faces with the selection highlighted.
+pub fn draw_objects(painter: &Painter, proj: &Projector, scene: &Scene, edit: Option<SelectMode>) {
+    let edited = edit.zip(scene.active());
     let mut faces = Vec::new();
+
     for object in scene.objects() {
-        let base = object_color(object, scene.selection.contains(object.id));
-        collect_faces(proj, object, base, &mut faces);
+        match edited {
+            Some((mode, active)) if active.id == object.id => {
+                let selected = scene.selection.elements.resolve(&object.mesh, mode);
+                let mut own = Vec::new();
+                collect_faces(proj, object, EDIT_BASE, &mut own);
+                for face in &mut own {
+                    if selected.faces.contains(&(face.face as u32)) {
+                        face.fill = lerp_color(face.fill, EDIT_SELECTED, 0.45);
+                    }
+                }
+                faces.extend(own);
+            }
+            _ => {
+                let selected = edit.is_none() && scene.selection.contains(object.id);
+                collect_faces(proj, object, object_color(object, selected), &mut faces);
+            }
+        }
     }
     draw_sorted(painter, proj, faces);
+
+    if let Some((mode, active)) = edited {
+        let selected = scene.selection.elements.resolve(&active.mesh, mode);
+        draw_edit_overlay(painter, proj, active, &selected, mode);
+        return;
+    }
 
     // Selection outline drawn on top, like Hammer.
     for object in scene.objects().iter().filter(|o| scene.selection.contains(o.id)) {
@@ -60,6 +92,7 @@ pub fn collect_faces(proj: &Projector, object: &Object, base: Color32, out: &mut
         }
         let light = 0.55 + 0.45 * normal.dot(light_dir()).max(0.0);
         out.push(FaceDraw {
+            face: f,
             depth: proj.depth(center),
             points: mesh.face_points(f),
             fill: base.gamma_multiply(light).to_opaque(),
@@ -75,6 +108,48 @@ pub fn draw_sorted(painter: &Painter, proj: &Projector, mut faces: Vec<FaceDraw>
         let pts = proj.polygon(&face.points);
         if pts.len() >= 3 {
             painter.add(Shape::convex_polygon(pts, face.fill, face.edge));
+        }
+    }
+}
+
+/// Visible edges and vertices of the edited mesh, selection in orange.
+fn draw_edit_overlay(painter: &Painter, proj: &Projector, object: &Object, selected: &ElementSelection, mode: SelectMode) {
+    let mesh = &object.mesh;
+    let verts = &mesh.vertices;
+
+    let mut selected_edges = Vec::new();
+    for e in mesh.edges() {
+        let (a, b) = (verts[e.0 as usize], verts[e.1 as usize]);
+        let is_selected = selected.edges.contains(&e);
+        // Selected edges are always shown; others only when visible.
+        if !is_selected && !point_visible(mesh, proj, (a + b) * 0.5) {
+            continue;
+        }
+        if let Some(seg) = proj.segment(a, b) {
+            if is_selected {
+                selected_edges.push(seg);
+            } else {
+                painter.line_segment(seg, Stroke::new(1.0, EDIT_WIRE));
+            }
+        }
+    }
+    for seg in selected_edges {
+        painter.line_segment(seg, Stroke::new(2.0, EDIT_SELECTED));
+    }
+
+    if mode == SelectMode::Vertex {
+        for (i, p) in verts.iter().enumerate() {
+            let is_selected = selected.verts.contains(&(i as u32));
+            if !is_selected && !point_visible(mesh, proj, *p) {
+                continue;
+            }
+            if let Some(s) = proj.point(*p) {
+                if is_selected {
+                    painter.circle_filled(s, 4.0, EDIT_SELECTED);
+                } else {
+                    painter.circle_filled(s, 3.0, EDIT_WIRE);
+                }
+            }
         }
     }
 }

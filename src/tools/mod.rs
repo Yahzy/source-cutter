@@ -12,13 +12,14 @@ pub use block::BlockTool;
 pub use move_tool::MoveTool;
 pub use scale_tool::ScaleTool;
 pub use select::SelectTool;
+pub use transform::selection_bounds;
 
 use eframe::egui::{Painter, Pos2};
 use glam::Vec3;
 
 use crate::editor::{GridPlane, GridSettings, History};
 use crate::math::Ray;
-use crate::scene::Scene;
+use crate::scene::{Scene, SelectMode};
 use crate::viewport::Projector;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,7 +45,7 @@ impl ToolKind {
     pub fn icon(self) -> &'static str {
         match self {
             ToolKind::Select => "↖",
-            ToolKind::Move => "✥",
+            ToolKind::Move => "✋",
             ToolKind::Scale => "⤢",
             ToolKind::Block => "⬛",
         }
@@ -82,6 +83,8 @@ pub struct ToolInput<'a> {
     pub clicked: bool,
     /// Shift held (add to selection).
     pub shift: bool,
+    /// `Some(select mode)` in Edit Mode, `None` in Object Mode.
+    pub edit: Option<SelectMode>,
 }
 
 pub struct Tools {
@@ -115,11 +118,11 @@ impl Tools {
     }
 
     /// Draws the active tool's handles and previews.
-    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene) {
+    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene, edit: Option<SelectMode>) {
         match self.active {
             ToolKind::Select => {}
-            ToolKind::Move => self.move_tool.draw(painter, proj, scene),
-            ToolKind::Scale => self.scale.draw(painter, proj, scene),
+            ToolKind::Move => self.move_tool.draw(painter, proj, scene, edit),
+            ToolKind::Scale => self.scale.draw(painter, proj, scene, edit),
             ToolKind::Block => self.block.draw(painter, proj),
         }
     }
@@ -146,6 +149,7 @@ mod tests {
         history: History,
         grid: GridSettings,
         proj: Projector,
+        edit: Option<SelectMode>,
     }
 
     impl Harness {
@@ -158,12 +162,12 @@ mod tests {
             camera.target = Vec3::new(32.0, 32.0, 32.0);
             camera.look_from(Vec3::Z);
             let proj = Projector::new(&camera, Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(800.0, 600.0)));
-            Self { scene, history: History::default(), grid: GridSettings::default(), proj }
+            Self { scene, history: History::default(), grid: GridSettings::default(), proj, edit: None }
         }
 
         /// Hover, press at `from`, drag to `to`, release.
         fn drag(&mut self, tools: &mut Tools, from: Pos2, to: Pos2) {
-            let Harness { scene, history, grid, proj } = self;
+            let Harness { scene, history, grid, proj, edit } = self;
             let steps = [(from, false, false, false), (from, true, true, false), (to, false, true, false), (to, false, false, true)];
             for (p, pressed, down, released) in steps {
                 let input = ToolInput {
@@ -178,6 +182,7 @@ mod tests {
                     released,
                     clicked: false,
                     shift: false,
+                    edit: *edit,
                 };
                 tools.update(&input, scene, history);
             }
@@ -227,5 +232,30 @@ mod tests {
         assert_eq!(b.min.x, 0.0, "opposite side stays: {b:?}");
         assert_eq!(b.max.x, 128.0, "moved side snapped: {b:?}");
         assert_eq!(b.size().y, 64.0);
+    }
+
+    #[test]
+    fn edit_mode_moves_only_the_selected_face() {
+        let mut h = Harness::new();
+        // Seen from the front so the Z arrow can be dragged.
+        let mut camera = OrbitCamera::default();
+        camera.target = Vec3::new(32.0, 32.0, 32.0);
+        camera.look_from(Vec3::NEG_Y);
+        h.proj = Projector::new(&camera, Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(800.0, 600.0)));
+
+        let mesh = &h.scene.objects()[0].mesh;
+        let top = (0..mesh.faces.len()).find(|&f| mesh.face_normal(f) == Vec3::Z).unwrap() as u32;
+        h.scene.selection.elements.set(crate::scene::Element::Face(top));
+        h.edit = Some(SelectMode::Face);
+
+        let mut tools = Tools { active: ToolKind::Move, ..Default::default() };
+        let pivot = Vec3::new(32.0, 32.0, 64.0); // center of the top face
+        let grab = h.screen(pivot + Vec3::Z * h.proj.pixel_size_at(pivot) * 60.0);
+        let target = grab - eframe::egui::vec2(0.0, 64.0 / h.proj.pixel_size_at(pivot));
+        h.drag(&mut tools, grab, target);
+
+        let b = h.bounds();
+        assert_eq!(b.min.z, 0.0, "bottom face stays: {b:?}");
+        assert_eq!(b.max.z, 128.0, "top face moved up by 64: {b:?}");
     }
 }

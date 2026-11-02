@@ -9,7 +9,7 @@ use super::select::click_select;
 use super::transform::{TransformTarget, selection_bounds};
 use crate::editor::History;
 use crate::math::Aabb;
-use crate::scene::Scene;
+use crate::scene::{Scene, SelectMode};
 use crate::viewport::{Projector, axis_color, draw_wire_box};
 
 /// Handles are pushed this many pixels outside the bounds.
@@ -39,7 +39,7 @@ pub struct ScaleTool {
 
 impl ScaleTool {
     pub fn update(&mut self, input: &ToolInput, scene: &mut Scene, history: &mut History) {
-        let bounds = selection_bounds(scene);
+        let bounds = selection_bounds(scene, input.edit);
         self.hovered = match (bounds, input.pointer) {
             (Some(b), Some(p)) if self.drag.is_none() => pick_handle(input.proj, &b, p),
             _ => self.drag.as_ref().map(|d| d.handle),
@@ -47,7 +47,7 @@ impl ScaleTool {
 
         if input.pressed
             && let (Some(handle), Some(bounds)) = (self.hovered, bounds)
-            && let Some(target) = TransformTarget::capture(scene)
+            && let Some(target) = TransformTarget::capture(scene, input.edit)
             && let Some(grab) = grab_along_axis(input, &bounds, handle)
         {
             history.checkpoint(scene);
@@ -75,8 +75,8 @@ impl ScaleTool {
         true
     }
 
-    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene) {
-        let Some(bounds) = selection_bounds(scene) else { return };
+    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene, edit: Option<SelectMode>) {
+        let Some(bounds) = selection_bounds(scene, edit) else { return };
         draw_wire_box(painter, proj, &bounds, Stroke::new(1.0, BOUNDS.gamma_multiply(0.7)));
 
         for handle in handles(&bounds) {

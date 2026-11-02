@@ -32,10 +32,6 @@ impl Aabb {
         })
     }
 
-    pub fn union(&self, other: &Aabb) -> Aabb {
-        Self { min: self.min.min(other.min), max: self.max.max(other.max) }
-    }
-
     pub fn size(&self) -> Vec3 {
         self.max - self.min
     }

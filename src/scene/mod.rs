@@ -4,11 +4,11 @@ mod mesh;
 mod object;
 mod selection;
 
-pub use mesh::{EdgeKey, Face, Mesh};
+pub use mesh::{EdgeKey, Mesh};
 pub use object::{Object, ObjectId};
-pub use selection::Selection;
+pub use selection::{Element, ElementSelection, SelectMode, Selection};
 
-use crate::math::{Aabb, Ray};
+use crate::math::Ray;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scene {
@@ -64,15 +64,6 @@ impl Scene {
         if self.selection.active.is_none() {
             self.selection.active = self.objects.last().map(|o| o.id);
         }
-    }
-
-    /// Bounds of all selected objects.
-    pub fn selection_bounds(&self) -> Option<Aabb> {
-        self.objects
-            .iter()
-            .filter(|o| self.selection.contains(o.id))
-            .map(|o| o.mesh.bounds())
-            .reduce(|a, b| a.union(&b))
     }
 
     // --- Queries ---------------------------------------------------------

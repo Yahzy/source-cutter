@@ -7,7 +7,7 @@ use super::ToolInput;
 use super::select::click_select;
 use super::transform::{TransformTarget, distance_to_segment, selection_bounds};
 use crate::editor::History;
-use crate::scene::Scene;
+use crate::scene::{Scene, SelectMode};
 use crate::viewport::{Projector, axis_color};
 
 /// Arrow length in pixels.
@@ -40,7 +40,7 @@ pub struct MoveTool {
 
 impl MoveTool {
     pub fn update(&mut self, input: &ToolInput, scene: &mut Scene, history: &mut History) {
-        let pivot = selection_bounds(scene).map(|b| b.center());
+        let pivot = selection_bounds(scene, input.edit).map(|b| b.center());
         self.hovered = match (pivot, input.pointer) {
             (Some(pivot), Some(p)) if self.drag.is_none() => pick_handle(input.proj, pivot, p),
             _ => self.drag.as_ref().map(|d| d.handle),
@@ -68,7 +68,7 @@ impl MoveTool {
     }
 
     fn start_drag(&mut self, input: &ToolInput, scene: &Scene, history: &mut History, handle: Handle, pivot: Vec3) {
-        let Some(target) = TransformTarget::capture(scene) else { return };
+        let Some(target) = TransformTarget::capture(scene, input.edit) else { return };
         let plane_normal = match handle {
             Handle::Plane(k) => axis(k),
             _ => input.plane.normal(),
@@ -86,8 +86,8 @@ impl MoveTool {
         true
     }
 
-    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene) {
-        let Some(pivot) = selection_bounds(scene).map(|b| b.center()) else { return };
+    pub fn draw(&self, painter: &Painter, proj: &Projector, scene: &Scene, edit: Option<SelectMode>) {
+        let Some(pivot) = selection_bounds(scene, edit).map(|b| b.center()) else { return };
         let Some(center) = proj.point(pivot) else { return };
         let len = proj.pixel_size_at(pivot) * ARROW_PX;
         let color = |h: Handle, base: Color32| if self.hovered == Some(h) { HOVER } else { base };

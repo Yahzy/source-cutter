@@ -3,6 +3,7 @@
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 
 use crate::editor::Editor;
+use crate::scene::SelectMode;
 use crate::tools::ToolKind;
 use crate::{ui, viewport};
 
@@ -20,6 +21,7 @@ impl SourceCutterApp {
 impl eframe::App for SourceCutterApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         handle_shortcuts(ui.ctx(), &mut self.editor);
+        self.editor.validate();
 
         let editor = &mut self.editor;
         let dark_frame = egui::Frame::side_top_panel(ui.style()).fill(ui::theme::PANEL_DARK);
@@ -98,6 +100,17 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
         }
         if i.key_pressed(Key::Escape) {
             editor.escape();
+        }
+        // Tab: Object / Edit Mode. 1 / 2 / 3: vertex / edge / face select mode (Edit Mode).
+        if i.consume_key(Modifiers::NONE, Key::Tab) {
+            editor.toggle_mode();
+        }
+        if editor.edit_context().is_some() && i.modifiers.is_none() {
+            for (key, mode) in [(Key::Num1, SelectMode::Vertex), (Key::Num2, SelectMode::Edge), (Key::Num3, SelectMode::Face)] {
+                if i.key_pressed(key) {
+                    editor.set_select_mode(mode);
+                }
+            }
         }
         if i.key_pressed(Key::Num5) && i.modifiers.is_none() {
             editor.camera.toggle_projection();

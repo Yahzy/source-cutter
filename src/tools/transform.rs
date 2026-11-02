@@ -5,7 +5,7 @@ use eframe::egui::{Pos2, Vec2};
 use glam::Vec3;
 
 use crate::math::Aabb;
-use crate::scene::{ObjectId, Scene};
+use crate::scene::{ObjectId, Scene, SelectMode};
 
 /// Vertices being transformed, with their positions when the drag started.
 pub struct TransformTarget {
@@ -15,8 +15,8 @@ pub struct TransformTarget {
 
 impl TransformTarget {
     /// Captures the vertices that the current selection would transform.
-    pub fn capture(scene: &Scene) -> Option<Self> {
-        let entries: Vec<_> = selected_vertices(scene)
+    pub fn capture(scene: &Scene, edit: Option<SelectMode>) -> Option<Self> {
+        let entries: Vec<_> = selected_vertices(scene, edit)
             .into_iter()
             .filter_map(|(id, verts)| {
                 let mesh = &scene.get(id)?.mesh;
@@ -48,19 +48,27 @@ impl TransformTarget {
     }
 }
 
-/// Vertices affected by a transform: all vertices of the selected objects.
-pub fn selected_vertices(scene: &Scene) -> Vec<(ObjectId, Vec<u32>)> {
-    scene
-        .objects()
-        .iter()
-        .filter(|o| scene.selection.contains(o.id))
-        .map(|o| (o.id, (0..o.mesh.vertices.len() as u32).collect()))
-        .collect()
+/// Vertices affected by a transform: all vertices of the selected objects in Object Mode,
+/// the vertices of the selected elements of the active object in Edit Mode.
+pub fn selected_vertices(scene: &Scene, edit: Option<SelectMode>) -> Vec<(ObjectId, Vec<u32>)> {
+    match edit {
+        None => scene
+            .objects()
+            .iter()
+            .filter(|o| scene.selection.contains(o.id))
+            .map(|o| (o.id, (0..o.mesh.vertices.len() as u32).collect()))
+            .collect(),
+        Some(mode) => scene
+            .active()
+            .map(|o| (o.id, scene.selection.elements.resolve(&o.mesh, mode).verts.into_iter().collect()))
+            .into_iter()
+            .collect(),
+    }
 }
 
 /// Bounds of what a transform would affect right now.
-pub fn selection_bounds(scene: &Scene) -> Option<Aabb> {
-    TransformTarget::capture(scene).map(|t| t.bounds)
+pub fn selection_bounds(scene: &Scene, edit: Option<SelectMode>) -> Option<Aabb> {
+    TransformTarget::capture(scene, edit).map(|t| t.bounds)
 }
 
 /// Distance in pixels from `p` to the segment `a`–`b`.

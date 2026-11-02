@@ -13,8 +13,24 @@ pub fn show(ui: &mut Ui, editor: &Editor) {
         ui.separator();
         ui.monospace(format!("objects: {}", editor.scene.objects().len()));
         ui.separator();
-        ui.monospace(format!("selected: {}", editor.scene.selection.objects.len()));
-        if let Some(b) = editor.scene.selection_bounds() {
+        match (editor.edit_context(), editor.scene.active()) {
+            (Some(mode), Some(object)) => {
+                let r = editor.scene.selection.elements.resolve(&object.mesh, mode);
+                ui.monospace(format!(
+                    "edit: {}  verts {}/{}  edges {}  faces {}/{}",
+                    mode.label(),
+                    r.verts.len(),
+                    object.mesh.vertices.len(),
+                    r.edges.len(),
+                    r.faces.len(),
+                    object.mesh.faces.len()
+                ));
+            }
+            _ => {
+                ui.monospace(format!("selected: {}", editor.scene.selection.objects.len()));
+            }
+        }
+        if let Some(b) = crate::tools::selection_bounds(&editor.scene, editor.edit_context()) {
             let s = b.size();
             ui.monospace(format!("({} × {} × {})", s.x, s.y, s.z));
         }
