@@ -9,17 +9,38 @@ use crate::{ui, viewport};
 
 pub struct SourceCutterApp {
     editor: Editor,
+    /// Tab was pressed this frame (taken from egui, see `raw_input_hook`).
+    tab_pressed: bool,
 }
 
 impl SourceCutterApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         ui::theme::apply(&cc.egui_ctx);
-        Self { editor: Editor::default() }
+        Self { editor: Editor::default(), tab_pressed: false }
     }
 }
 
 impl eframe::App for SourceCutterApp {
+    /// egui uses Tab to move keyboard focus between buttons, which breaks the
+    /// Blender-style Tab shortcut. Outside of text fields, Tab is removed from egui's
+    /// input and handled by the editor instead.
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if ctx.text_edit_focused() {
+            return;
+        }
+        raw_input.events.retain(|event| match event {
+            egui::Event::Key { key: Key::Tab, pressed, repeat, .. } => {
+                self.tab_pressed |= *pressed && !*repeat;
+                false
+            }
+            _ => true,
+        });
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if std::mem::take(&mut self.tab_pressed) {
+            self.editor.toggle_mode();
+        }
         handle_shortcuts(ui.ctx(), &mut self.editor);
         self.editor.validate();
 
@@ -53,7 +74,7 @@ impl eframe::App for SourceCutterApp {
 
 fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
     // Don't steal keys while typing in a text field.
-    if ctx.egui_wants_keyboard_input() {
+    if ctx.text_edit_focused() {
         return;
     }
 
@@ -101,10 +122,7 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
         if i.key_pressed(Key::Escape) {
             editor.escape();
         }
-        // Tab: Object / Edit Mode. 1 / 2 / 3: vertex / edge / face select mode (Edit Mode).
-        if i.consume_key(Modifiers::NONE, Key::Tab) {
-            editor.toggle_mode();
-        }
+        // 1 / 2 / 3: vertex / edge / face select mode (Edit Mode). Tab is handled in `ui`.
         if editor.edit_context().is_some() && i.modifiers.is_none() {
             for (key, mode) in [(Key::Num1, SelectMode::Vertex), (Key::Num2, SelectMode::Edge), (Key::Num3, SelectMode::Face)] {
                 if i.key_pressed(key) {
