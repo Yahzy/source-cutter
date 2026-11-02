@@ -21,8 +21,14 @@ impl Projector {
         Self { view, proj, inv_view_proj: (proj * view).inverse(), rect, eye: camera.eye() }
     }
 
-    pub fn eye(&self) -> Vec3 {
-        self.eye
+    /// Distance from the camera plane (bigger = farther). Used to sort faces.
+    pub fn depth(&self, p: Vec3) -> f32 {
+        -self.view.transform_point3(p).z
+    }
+
+    /// True when a face with this center and normal faces the camera.
+    pub fn is_front_facing(&self, center: Vec3, normal: Vec3) -> bool {
+        normal.dot(self.eye - center) > 0.0
     }
 
     /// Rotates a world direction into view space (x right, y up, z towards the viewer).

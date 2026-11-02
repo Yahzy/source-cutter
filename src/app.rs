@@ -72,7 +72,13 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
         if i.key_pressed(Key::CloseBracket) || i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals) {
             editor.grid.increase();
         }
-        if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
+        if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::ALT, Key::A)) {
+            editor.deselect_all();
+        }
+        if i.key_pressed(Key::A) && i.modifiers.is_none() {
+            editor.select_all();
+        }
+        if i.key_pressed(Key::Delete) || (i.key_pressed(Key::X) && i.modifiers.is_none()) {
             editor.delete_selected();
         }
         if i.key_pressed(Key::Escape) {

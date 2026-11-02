@@ -12,6 +12,7 @@ mod nav_gizmo;
 mod projector;
 
 use eframe::egui::{Align2, Color32, FontId, PointerButton, Rect, Response, Sense, Ui, vec2};
+use glam::Vec3;
 
 use crate::editor::Editor;
 use crate::tools::{ToolInput, ToolKind};
@@ -34,7 +35,7 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
     if editor.grid.visible {
         draw_grid::draw(&painter, &proj, &editor.camera, &editor.grid);
     }
-    draw_scene::draw_brushes(&painter, &proj, &editor.scene);
+    draw_scene::draw_objects(&painter, &proj, &editor.scene);
     if editor.view.show_player_reference {
         draw_scene::draw_player_reference(&painter, &proj, &Editor::player_reference_bounds());
     }
@@ -43,7 +44,7 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
             draw_scene::draw_block_preview(&painter, &proj, &bounds);
         }
         if let Some(cursor) = editor.cursor {
-            draw_scene::draw_cursor(&painter, &proj, cursor, editor.grid.size() as f32 * 0.5);
+            draw_scene::draw_cursor(&painter, &proj, cursor, [Vec3::X, Vec3::Y], editor.grid.size() as f32 * 0.5);
         }
     }
 
@@ -76,12 +77,13 @@ fn handle_navigation(ui: &Ui, response: &Response, editor: &mut Editor, rect: Re
 }
 
 fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projector, rect: Rect) {
-    let (pointer, pressed, down, released) = ui.input(|i| {
+    let (pointer, pressed, down, released, shift) = ui.input(|i| {
         (
             i.pointer.latest_pos(),
             i.pointer.primary_pressed(),
             i.pointer.primary_down(),
             i.pointer.primary_released(),
+            i.modifiers.shift,
         )
     });
 
@@ -89,7 +91,7 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
     let in_viewport = response.hovered() && !over_gizmo;
 
     let ray = pointer.map(|p| proj.ray(p));
-    let ground = ray.and_then(|r| r.intersect_plane_z(0.0).map(|t| editor.grid.snap_point(r.at(t))));
+    let ground = ray.and_then(|r| r.intersect_plane(Vec3::ZERO, Vec3::Z).map(|t| editor.grid.snap_point(r.at(t))));
     editor.cursor = if response.hovered() { ground } else { None };
 
     let input = ToolInput {
@@ -99,6 +101,7 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
         down,
         released,
         clicked: response.clicked() && !over_gizmo,
+        shift,
     };
     editor.tools.update(&input, &mut editor.scene);
 }

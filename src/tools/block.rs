@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use super::ToolInput;
 use crate::math::Aabb;
-use crate::scene::Scene;
+use crate::scene::{Mesh, Scene};
 
 /// Hammer's Block tool: drag on the ground to draw a box brush.
 pub struct BlockTool {
@@ -36,8 +36,8 @@ impl BlockTool {
 
         if input.released {
             if let Some(bounds) = self.preview() {
-                let id = scene.add_brush(bounds);
-                scene.select(Some(id));
+                let id = scene.add_object("Block", Mesh::cuboid(&bounds));
+                scene.selection.set(id);
             }
             self.drag = None;
         }

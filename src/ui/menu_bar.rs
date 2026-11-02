@@ -15,12 +15,16 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
         });
 
         ui.menu_button("Edit", |ui| {
-            let has_selection = editor.scene.selected().is_some();
+            let has_selection = !editor.scene.selection.objects.is_empty();
             if ui.add_enabled(has_selection, egui::Button::new("Delete            Del")).clicked() {
                 editor.delete_selected();
             }
-            if ui.button("Deselect          Esc").clicked() {
-                editor.scene.select(None);
+            ui.separator();
+            if ui.button("Select all        A").clicked() {
+                editor.select_all();
+            }
+            if ui.button("Deselect all      Alt+A").clicked() {
+                editor.deselect_all();
             }
         });
 

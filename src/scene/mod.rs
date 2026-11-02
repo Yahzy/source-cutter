@@ -1,70 +1,87 @@
-//! The document being edited: a list of brushes and the current selection.
+//! The document being edited: objects (meshes) and the current selection.
 
-mod brush;
+mod mesh;
+mod object;
+mod selection;
 
-pub use brush::{Brush, BrushId};
+pub use mesh::{EdgeKey, Face, Mesh};
+pub use object::{Object, ObjectId};
+pub use selection::Selection;
 
 use crate::math::{Aabb, Ray};
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scene {
-    brushes: Vec<Brush>,
-    selected: Option<BrushId>,
+    objects: Vec<Object>,
+    pub selection: Selection,
     next_id: u32,
 }
 
 impl Scene {
-    pub fn brushes(&self) -> &[Brush] {
-        &self.brushes
+    pub fn objects(&self) -> &[Object] {
+        &self.objects
     }
 
-    pub fn add_brush(&mut self, bounds: Aabb) -> BrushId {
+    pub fn get(&self, id: ObjectId) -> Option<&Object> {
+        self.objects.iter().find(|o| o.id == id)
+    }
+
+    pub fn get_mut(&mut self, id: ObjectId) -> Option<&mut Object> {
+        self.objects.iter_mut().find(|o| o.id == id)
+    }
+
+    pub fn add_object(&mut self, name: &str, mesh: Mesh) -> ObjectId {
         self.next_id += 1;
-        let id = BrushId(self.next_id);
-        self.brushes.push(Brush::new(id, bounds));
+        let id = ObjectId(self.next_id);
+        self.objects.push(Object::new(id, format!("{name} {}", id.0), mesh));
         id
     }
 
-    pub fn remove(&mut self, id: BrushId) {
-        self.brushes.retain(|b| b.id != id);
-        if self.selected == Some(id) {
-            self.selected = None;
-        }
+    pub fn remove(&mut self, id: ObjectId) {
+        self.objects.retain(|o| o.id != id);
+        self.selection.remove(id);
     }
 
-    // --- Selection -------------------------------------------------------
+    // --- Selection helpers -------------------------------------------------
 
-    pub fn selected_id(&self) -> Option<BrushId> {
-        self.selected
+    pub fn active(&self) -> Option<&Object> {
+        self.get(self.selection.active?)
     }
 
-    pub fn select(&mut self, id: Option<BrushId>) {
-        self.selected = id;
-    }
-
-    pub fn selected(&self) -> Option<&Brush> {
-        let id = self.selected?;
-        self.brushes.iter().find(|b| b.id == id)
-    }
-
-    pub fn selected_mut(&mut self) -> Option<&mut Brush> {
-        let id = self.selected?;
-        self.brushes.iter_mut().find(|b| b.id == id)
+    pub fn active_mut(&mut self) -> Option<&mut Object> {
+        self.get_mut(self.selection.active?)
     }
 
     pub fn delete_selected(&mut self) {
-        if let Some(id) = self.selected {
+        let ids: Vec<_> = self.selection.objects.iter().copied().collect();
+        for id in ids {
             self.remove(id);
         }
     }
 
+    pub fn select_all(&mut self) {
+        self.selection.objects = self.objects.iter().map(|o| o.id).collect();
+        if self.selection.active.is_none() {
+            self.selection.active = self.objects.last().map(|o| o.id);
+        }
+    }
+
+    /// Bounds of all selected objects.
+    pub fn selection_bounds(&self) -> Option<Aabb> {
+        self.objects
+            .iter()
+            .filter(|o| self.selection.contains(o.id))
+            .map(|o| o.mesh.bounds())
+            .reduce(|a, b| a.union(&b))
+    }
+
     // --- Queries ---------------------------------------------------------
 
-    /// Returns the closest brush hit by the ray.
-    pub fn pick(&self, ray: &Ray) -> Option<BrushId> {
-        self.brushes
+    /// Returns the closest object hit by the ray.
+    pub fn pick(&self, ray: &Ray) -> Option<ObjectId> {
+        self.objects
             .iter()
-            .filter_map(|b| ray.intersect_aabb(&b.bounds).map(|t| (t, b.id)))
+            .filter_map(|o| o.mesh.raycast(ray).map(|(t, _)| (t, o.id)))
             .min_by(|a, b| a.0.total_cmp(&b.0))
             .map(|(_, id)| id)
     }

@@ -1,7 +1,5 @@
 use glam::Vec3;
 
-use super::Aabb;
-
 /// A half-line used for picking (mouse → world).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray {
@@ -15,27 +13,52 @@ impl Ray {
         self.origin + self.dir * t
     }
 
-    /// Distance along the ray to the horizontal plane `z = height`, if hit in front.
-    pub fn intersect_plane_z(&self, height: f32) -> Option<f32> {
-        if self.dir.z.abs() < 1e-6 {
+    /// Distance along the ray to the plane through `point` with `normal`, if hit in front.
+    pub fn intersect_plane(&self, point: Vec3, normal: Vec3) -> Option<f32> {
+        let denom = self.dir.dot(normal);
+        if denom.abs() < 1e-6 {
             return None;
         }
-        let t = (height - self.origin.z) / self.dir.z;
+        let t = (point - self.origin).dot(normal) / denom;
         (t > 0.0).then_some(t)
     }
 
-    /// Distance along the ray to the first hit with the box (slab method).
-    pub fn intersect_aabb(&self, aabb: &Aabb) -> Option<f32> {
-        let inv = self.dir.recip();
-        let t1 = (aabb.min - self.origin) * inv;
-        let t2 = (aabb.max - self.origin) * inv;
-        let t_near = t1.min(t2).max_element();
-        let t_far = t1.max(t2).min_element();
-
-        if t_far < t_near.max(0.0) {
+    /// Distance to a triangle, both sides (Möller–Trumbore).
+    pub fn intersect_triangle(&self, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
+        let e1 = b - a;
+        let e2 = c - a;
+        let p = self.dir.cross(e2);
+        let det = e1.dot(p);
+        if det.abs() < 1e-8 {
             return None;
         }
-        Some(if t_near > 0.0 { t_near } else { t_far })
+        let inv_det = 1.0 / det;
+        let s = self.origin - a;
+        let u = s.dot(p) * inv_det;
+        if !(0.0..=1.0).contains(&u) {
+            return None;
+        }
+        let q = s.cross(e1);
+        let v = self.dir.dot(q) * inv_det;
+        if v < 0.0 || u + v > 1.0 {
+            return None;
+        }
+        let t = e2.dot(q) * inv_det;
+        (t > 0.0).then_some(t)
+    }
+
+    /// Parameter `s` of the point on the line `origin + s * axis` closest to this ray.
+    /// Used to drag things along an axis with the mouse.
+    pub fn closest_on_line(&self, origin: Vec3, axis: Vec3) -> Option<f32> {
+        let b = axis.dot(self.dir);
+        let denom = axis.length_squared() - b * b;
+        if denom.abs() < 1e-6 {
+            return None; // Ray parallel to the axis.
+        }
+        let w = origin - self.origin;
+        let d = axis.dot(w);
+        let e = self.dir.dot(w);
+        Some((b * e - d) / denom)
     }
 }
 
@@ -44,23 +67,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hits_box_in_front() {
-        let ray = Ray { origin: Vec3::new(0.0, 0.0, 100.0), dir: Vec3::NEG_Z };
-        let aabb = Aabb::from_corners(Vec3::splat(-16.0), Vec3::splat(16.0));
-        assert_eq!(ray.intersect_aabb(&aabb), Some(84.0));
-    }
-
-    #[test]
-    fn misses_box_behind() {
-        let ray = Ray { origin: Vec3::new(0.0, 0.0, 100.0), dir: Vec3::Z };
-        let aabb = Aabb::from_corners(Vec3::splat(-16.0), Vec3::splat(16.0));
-        assert_eq!(ray.intersect_aabb(&aabb), None);
-    }
-
-    #[test]
     fn hits_ground_plane() {
         let ray = Ray { origin: Vec3::new(5.0, 5.0, 10.0), dir: Vec3::new(0.0, 0.6, -0.8) };
-        let t = ray.intersect_plane_z(0.0).unwrap();
+        let t = ray.intersect_plane(Vec3::ZERO, Vec3::Z).unwrap();
         assert!((ray.at(t).z).abs() < 1e-5);
+    }
+
+    #[test]
+    fn closest_point_on_axis() {
+        // Ray looking down at x = 10: closest point on the X axis is s = 10.
+        let ray = Ray { origin: Vec3::new(10.0, 0.0, 50.0), dir: Vec3::NEG_Z };
+        let s = ray.closest_on_line(Vec3::ZERO, Vec3::X).unwrap();
+        assert!((s - 10.0).abs() < 1e-4);
     }
 }

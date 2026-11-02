@@ -57,6 +57,8 @@ pub struct ToolInput {
     pub released: bool,
     /// Left click (press + release without dragging) inside the viewport.
     pub clicked: bool,
+    /// Shift held (add to selection).
+    pub shift: bool,
 }
 
 pub struct Tools {

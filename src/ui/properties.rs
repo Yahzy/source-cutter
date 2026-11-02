@@ -28,10 +28,11 @@ fn section(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
 fn tool_settings(ui: &mut Ui, editor: &mut Editor) {
     match editor.tools.active {
         ToolKind::Select => {
-            ui.label("Click a brush to select it.");
+            ui.label("Click an object to select it.
+Shift+click to add to the selection.");
         }
         ToolKind::Block => {
-            ui.label("Drag on the grid to create a brush.");
+            ui.label("Drag on the grid to create a block.");
             ui.horizontal(|ui| {
                 ui.label("Height");
                 ui.add(
@@ -48,23 +49,27 @@ fn tool_settings(ui: &mut Ui, editor: &mut Editor) {
 
 fn selection(ui: &mut Ui, editor: &mut Editor) {
     let grid_step = editor.grid.size() as f64;
-    let mut delete = false;
+    let count = editor.scene.selection.objects.len();
 
-    let Some(brush) = editor.scene.selected_mut() else {
+    let Some(object) = editor.scene.active_mut() else {
         ui.weak("Nothing selected");
         return;
     };
+    if count > 1 {
+        ui.weak(format!("{count} objects selected, editing the active one"));
+    }
 
     ui.horizontal(|ui| {
         ui.label("Name");
-        ui.text_edit_singleline(&mut brush.name);
+        ui.text_edit_singleline(&mut object.name);
     });
 
     // Edited as origin (min corner) + size, which is more natural than min/max.
-    let mut origin = brush.bounds.min;
-    let mut size = brush.bounds.size();
+    let bounds = object.mesh.bounds();
+    let mut origin = bounds.min;
+    let mut size = bounds.size();
 
-    egui::Grid::new("brush_transform").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
+    egui::Grid::new("object_transform").num_columns(4).spacing([6.0, 4.0]).show(ui, |ui| {
         ui.label("");
         ui.label("X");
         ui.label("Y");
@@ -76,26 +81,27 @@ fn selection(ui: &mut Ui, editor: &mut Editor) {
         ui.end_row();
 
         ui.label("Size");
-        vec3_edit(ui, &mut size, grid_step, Some(1.0));
+        vec3_edit(ui, &mut size, grid_step, Some(0.0));
         ui.end_row();
     });
 
-    brush.bounds = Aabb::from_corners(origin, origin + size);
+    let new_bounds = Aabb::from_corners(origin, origin + size);
+    if new_bounds != bounds {
+        object.mesh.fit_to_bounds(&new_bounds);
+    }
 
-    let s = brush.bounds.size();
+    let mesh = &object.mesh;
     ui.small(format!(
-        "{:.2} × {:.2} × {:.2} m",
-        s.x * units::METERS_PER_UNIT,
-        s.y * units::METERS_PER_UNIT,
-        s.z * units::METERS_PER_UNIT
+        "{:.2} × {:.2} × {:.2} m  ·  {} verts, {} faces",
+        size.x * units::METERS_PER_UNIT,
+        size.y * units::METERS_PER_UNIT,
+        size.z * units::METERS_PER_UNIT,
+        mesh.vertices.len(),
+        mesh.faces.len(),
     ));
 
     ui.add_space(4.0);
-    if ui.button("🗑 Delete brush").clicked() {
-        delete = true;
-    }
-
-    if delete {
+    if ui.button("🗑 Delete").clicked() {
         editor.delete_selected();
     }
 }
@@ -111,18 +117,22 @@ fn vec3_edit(ui: &mut Ui, v: &mut Vec3, speed: f64, min: Option<f32>) {
 }
 
 fn outline(ui: &mut Ui, editor: &mut Editor) {
-    if editor.scene.brushes().is_empty() {
+    if editor.scene.objects().is_empty() {
         ui.weak("Empty scene");
         return;
     }
-    let selected = editor.scene.selected_id();
     let mut clicked = None;
-    for brush in editor.scene.brushes() {
-        if ui.selectable_label(selected == Some(brush.id), &brush.name).clicked() {
-            clicked = Some(brush.id);
+    for object in editor.scene.objects() {
+        let selected = editor.scene.selection.contains(object.id);
+        if ui.selectable_label(selected, &object.name).clicked() {
+            clicked = Some(object.id);
         }
     }
     if let Some(id) = clicked {
-        editor.scene.select(Some(id));
+        if ui.input(|i| i.modifiers.shift) {
+            editor.scene.selection.toggle(id);
+        } else {
+            editor.scene.selection.set(id);
+        }
     }
 }

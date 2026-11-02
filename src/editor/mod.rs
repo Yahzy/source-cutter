@@ -45,9 +45,17 @@ impl Editor {
         self.scene.delete_selected();
     }
 
+    pub fn select_all(&mut self) {
+        self.scene.select_all();
+    }
+
+    pub fn deselect_all(&mut self) {
+        self.scene.selection.clear();
+    }
+
     /// Centers the camera on the selection, or resets the view if nothing is selected.
     pub fn frame_selection(&mut self) {
-        match self.scene.selected().map(|b| b.bounds) {
+        match self.scene.selection_bounds() {
             Some(bounds) => self.camera.frame(&bounds),
             None => self.camera = OrbitCamera::default(),
         }
@@ -56,7 +64,7 @@ impl Editor {
     /// Escape: cancel the current tool action first, then clear the selection.
     pub fn escape(&mut self) {
         if !self.tools.cancel() {
-            self.scene.select(None);
+            self.scene.selection.clear();
         }
     }
 

@@ -7,24 +7,9 @@ pub struct Aabb {
     pub max: Vec3,
 }
 
-/// One face of a box: its 4 corner indices (cyclic order) and outward normal.
-pub struct AabbFace {
-    pub corners: [usize; 4],
-    pub normal: Vec3,
-}
-
 impl Aabb {
-    /// The 6 faces of a box. Corner index bits: 1 = max x, 2 = max y, 4 = max z.
-    pub const FACES: [AabbFace; 6] = [
-        AabbFace { corners: [0, 2, 6, 4], normal: Vec3::NEG_X },
-        AabbFace { corners: [1, 3, 7, 5], normal: Vec3::X },
-        AabbFace { corners: [0, 1, 5, 4], normal: Vec3::NEG_Y },
-        AabbFace { corners: [2, 3, 7, 6], normal: Vec3::Y },
-        AabbFace { corners: [0, 1, 3, 2], normal: Vec3::NEG_Z },
-        AabbFace { corners: [4, 5, 7, 6], normal: Vec3::Z },
-    ];
-
     /// The 12 edges of a box, as pairs of corner indices.
+    /// Corner index bits: 1 = max x, 2 = max y, 4 = max z.
     pub const EDGES: [(usize, usize); 12] = [
         (0, 1), (2, 3), (4, 5), (6, 7), // along X
         (0, 2), (1, 3), (4, 6), (5, 7), // along Y
@@ -34,6 +19,21 @@ impl Aabb {
     /// Builds a box from two opposite corners given in any order.
     pub fn from_corners(a: Vec3, b: Vec3) -> Self {
         Self { min: a.min(b), max: a.max(b) }
+    }
+
+    /// Smallest box containing all points (a zero box at the origin if empty).
+    pub fn from_points(points: &[Vec3]) -> Self {
+        let Some(first) = points.first() else {
+            return Self { min: Vec3::ZERO, max: Vec3::ZERO };
+        };
+        points.iter().fold(Self { min: *first, max: *first }, |b, p| Self {
+            min: b.min.min(*p),
+            max: b.max.max(*p),
+        })
+    }
+
+    pub fn union(&self, other: &Aabb) -> Aabb {
+        Self { min: self.min.min(other.min), max: self.max.max(other.max) }
     }
 
     pub fn size(&self) -> Vec3 {
