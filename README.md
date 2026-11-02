@@ -89,3 +89,7 @@ src/
 2. Add a variant to `ToolKind` (label, icon, shortcut) and a field in `Tools`.
 3. Call `history.checkpoint(scene)` before modifying the scene so it can be undone.
 4. Add its settings in `ui/properties.rs`.
+
+## License
+
+[MIT](LICENSE)

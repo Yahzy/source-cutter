@@ -2,6 +2,9 @@
 name = "source-cutter"
 version = "0.1.0"
 edition = "2024"
+description = "A 3D modelling tool for the Source Engine, with a Hammer-inspired workflow"
+license = "MIT"
+repository = "https://github.com/Yahzy/source-cutter"
 
 [dependencies]
 eframe = "0.37.0"
