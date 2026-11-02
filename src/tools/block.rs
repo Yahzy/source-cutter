@@ -5,12 +5,19 @@ use crate::editor::History;
 use crate::math::Aabb;
 use crate::scene::{Mesh, Scene};
 
-/// Hammer's Block tool: drag on the ground to draw a box brush.
+/// Hammer's Block tool: drag on the work plane to draw a box,
+/// extruded along the plane normal by `height`.
 pub struct BlockTool {
     /// Height in units of the created brushes.
     pub height: f32,
-    /// Start and current corner of the drag, on the ground plane.
-    drag: Option<(Vec3, Vec3)>,
+    drag: Option<BlockDrag>,
+}
+
+#[derive(Clone, Copy)]
+struct BlockDrag {
+    start: Vec3,
+    end: Vec3,
+    normal: Vec3,
 }
 
 impl Default for BlockTool {
@@ -22,17 +29,17 @@ impl Default for BlockTool {
 impl BlockTool {
     pub fn update(&mut self, input: &ToolInput, scene: &mut Scene, history: &mut History) {
         if input.pressed
-            && let Some(p) = input.ground
+            && let Some(p) = input.on_plane
         {
-            self.drag = Some((p, p));
+            self.drag = Some(BlockDrag { start: p, end: p, normal: input.plane.normal() });
         }
 
-        let Some((_, end)) = &mut self.drag else { return };
+        let Some(drag) = &mut self.drag else { return };
 
         if input.down
-            && let Some(p) = input.ground
+            && let Some(p) = input.on_plane
         {
-            *end = p;
+            drag.end = p;
         }
 
         if input.released {
@@ -47,9 +54,9 @@ impl BlockTool {
 
     /// The box being drawn, if the drag currently describes a valid brush.
     pub fn preview(&self) -> Option<Aabb> {
-        let (start, end) = self.drag?;
+        let drag = self.drag?;
         let height = self.height.max(1.0);
-        let bounds = Aabb::from_corners(start, end + Vec3::Z * height);
+        let bounds = Aabb::from_corners(drag.start, drag.end + drag.normal * height);
         (!bounds.is_degenerate()).then_some(bounds)
     }
 

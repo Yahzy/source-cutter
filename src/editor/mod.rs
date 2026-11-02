@@ -5,7 +5,7 @@ mod grid;
 mod history;
 
 pub use camera::OrbitCamera;
-pub use grid::GridSettings;
+pub use grid::{GridPlane, GridSettings};
 pub use history::History;
 
 use glam::Vec3;

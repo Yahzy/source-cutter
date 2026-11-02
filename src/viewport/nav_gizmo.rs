@@ -1,5 +1,6 @@
 //! Blender-like navigation gizmo in the top-right corner of the viewport.
-//! Click an axis bubble to look from that side, drag the gizmo to orbit.
+//! Click an axis bubble to look from that side (orthographic), drag the gizmo to orbit.
+//! The button below toggles perspective / orthographic.
 
 use eframe::egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Ui, Vec2, vec2};
 use glam::Vec3;
@@ -19,6 +20,7 @@ pub enum GizmoAction {
     LookFrom(Vec3),
     /// Orbit by this mouse delta in pixels.
     Orbit(Vec2),
+    ToggleProjection,
 }
 
 /// Screen area of the gizmo inside the viewport.
@@ -26,6 +28,17 @@ pub fn rect(viewport: Rect) -> Rect {
     let size = 2.0 * (RADIUS + BUBBLE + 4.0);
     let center = viewport.right_top() + vec2(-MARGIN - size * 0.5, MARGIN + size * 0.5);
     Rect::from_center_size(center, Vec2::splat(size))
+}
+
+/// Perspective / orthographic toggle button, below the compass.
+fn button_rect(viewport: Rect) -> Rect {
+    let compass = rect(viewport);
+    Rect::from_center_size(compass.center_bottom() + vec2(0.0, 14.0), vec2(56.0, 20.0))
+}
+
+/// True if the point is over the gizmo or its button.
+pub fn contains(viewport: Rect, p: Pos2) -> bool {
+    rect(viewport).contains(p) || button_rect(viewport).contains(p)
 }
 
 struct Bubble {
@@ -37,7 +50,11 @@ struct Bubble {
     depth: f32,
 }
 
-pub fn show(ui: &mut Ui, viewport: Rect, proj: &Projector) -> Option<GizmoAction> {
+pub fn show(ui: &mut Ui, viewport: Rect, proj: &Projector, orthographic: bool) -> Option<GizmoAction> {
+    if projection_button(ui, viewport, orthographic) {
+        return Some(GizmoAction::ToggleProjection);
+    }
+
     let area = rect(viewport);
     let center = area.center();
     let response = ui.interact(area, ui.scope_id().with("nav_gizmo"), Sense::click_and_drag());
@@ -87,4 +104,15 @@ pub fn show(ui: &mut Ui, viewport: Rect, proj: &Projector) -> Option<GizmoAction
         return Some(GizmoAction::Orbit(response.drag_delta()));
     }
     None
+}
+
+fn projection_button(ui: &mut Ui, viewport: Rect, orthographic: bool) -> bool {
+    let area = button_rect(viewport);
+    let response = ui.interact(area, ui.scope_id().with("projection_toggle"), Sense::click());
+    let painter = ui.painter_at(viewport);
+    let fill = if response.hovered() { Color32::from_white_alpha(40) } else { Color32::from_white_alpha(18) };
+    painter.rect_filled(area, 4.0, fill);
+    let label = if orthographic { "Ortho" } else { "Persp" };
+    painter.text(area.center(), Align2::CENTER_CENTER, label, FontId::proportional(11.0), Color32::from_gray(220));
+    response.on_hover_text("Toggle perspective / orthographic (5)").clicked()
 }

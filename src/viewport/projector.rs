@@ -18,7 +18,7 @@ impl Projector {
     pub fn new(camera: &OrbitCamera, rect: Rect) -> Self {
         let view = camera.view_matrix();
         let proj = camera.projection_matrix(rect.width() / rect.height().max(1.0));
-        Self { view, proj, inv_view_proj: (proj * view).inverse(), rect, eye: camera.eye() }
+        Self { view, proj, inv_view_proj: (proj * view).inverse(), rect, eye: camera.render_eye() }
     }
 
     /// Distance from the camera plane (bigger = farther). Used to sort faces.

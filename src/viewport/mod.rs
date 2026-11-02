@@ -14,7 +14,7 @@ mod projector;
 use eframe::egui::{Align2, Color32, FontId, PointerButton, Rect, Response, Sense, Ui, vec2};
 use glam::Vec3;
 
-use crate::editor::Editor;
+use crate::editor::{Editor, GridPlane};
 use crate::tools::{ToolInput, ToolKind};
 use nav_gizmo::GizmoAction;
 use projector::Projector;
@@ -33,7 +33,7 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
 
     // --- Rendering ---
     if editor.grid.visible {
-        draw_grid::draw(&painter, &proj, &editor.camera, &editor.grid);
+        draw_grid::draw(&painter, &proj, &editor.camera, &editor.grid, GridPlane::from_camera(&editor.camera));
     }
     draw_scene::draw_objects(&painter, &proj, &editor.scene);
     if editor.view.show_player_reference {
@@ -44,16 +44,18 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
             draw_scene::draw_block_preview(&painter, &proj, &bounds);
         }
         if let Some(cursor) = editor.cursor {
-            draw_scene::draw_cursor(&painter, &proj, cursor, [Vec3::X, Vec3::Y], editor.grid.size() as f32 * 0.5);
+            let axes = GridPlane::from_camera(&editor.camera).axes();
+            draw_scene::draw_cursor(&painter, &proj, cursor, axes, editor.grid.size() as f32 * 0.5);
         }
     }
 
     draw_overlay_text(&painter, rect, editor);
 
     // Gizmo last so it is drawn on top.
-    match nav_gizmo::show(ui, rect, &proj) {
+    match nav_gizmo::show(ui, rect, &proj, editor.camera.orthographic) {
         Some(GizmoAction::LookFrom(dir)) => editor.camera.look_from(dir),
         Some(GizmoAction::Orbit(delta)) => editor.camera.orbit(delta.x, delta.y),
+        Some(GizmoAction::ToggleProjection) => editor.camera.toggle_projection(),
         None => {}
     }
 }
@@ -87,16 +89,21 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
         )
     });
 
-    let over_gizmo = pointer.is_some_and(|p| nav_gizmo::rect(rect).contains(p));
+    let over_gizmo = pointer.is_some_and(|p| nav_gizmo::contains(rect, p));
     let in_viewport = response.hovered() && !over_gizmo;
 
+    let plane = GridPlane::from_camera(&editor.camera);
     let ray = pointer.map(|p| proj.ray(p));
-    let ground = ray.and_then(|r| r.intersect_plane(Vec3::ZERO, Vec3::Z).map(|t| editor.grid.snap_point(r.at(t))));
-    editor.cursor = if response.hovered() { ground } else { None };
+    let on_plane = ray.and_then(|r| {
+        let t = r.intersect_plane(Vec3::ZERO, plane.normal())?;
+        Some(editor.grid.snap_point(r.at(t)))
+    });
+    editor.cursor = if response.hovered() { on_plane } else { None };
 
     let input = ToolInput {
         ray,
-        ground,
+        plane,
+        on_plane,
         pressed: pressed && in_viewport,
         down,
         released,
@@ -108,7 +115,8 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
 
 fn draw_overlay_text(painter: &eframe::egui::Painter, rect: Rect, editor: &Editor) {
     let text = format!(
-        "Perspective  ·  Grid {}{}  ·  {}",
+        "{}  ·  Grid {}{}  ·  {}",
+        editor.camera.view_name(),
         editor.grid.size(),
         if editor.grid.snap { "" } else { " (snap off)" },
         editor.tools.active.label(),

@@ -9,7 +9,7 @@ pub use select::SelectTool;
 
 use glam::Vec3;
 
-use crate::editor::History;
+use crate::editor::{GridPlane, History};
 use crate::math::Ray;
 use crate::scene::Scene;
 
@@ -48,8 +48,10 @@ impl ToolKind {
 pub struct ToolInput {
     /// Ray under the mouse.
     pub ray: Option<Ray>,
-    /// Snapped point under the mouse on the ground plane (z = 0).
-    pub ground: Option<Vec3>,
+    /// Plane the tools work on (follows orthographic views).
+    pub plane: GridPlane,
+    /// Snapped point under the mouse on the work plane.
+    pub on_plane: Option<Vec3>,
     /// Left button pressed this frame inside the viewport.
     pub pressed: bool,
     /// Left button held.

@@ -1,6 +1,43 @@
 use glam::Vec3;
 
+use super::OrbitCamera;
 use crate::units::{GRID_DEFAULT, GRID_MAX, GRID_MIN};
+
+/// Plane the grid is drawn on and tools work on.
+/// XY in perspective; follows the view in orthographic axis views (like Hammer's 2D views).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridPlane {
+    XY,
+    XZ,
+    YZ,
+}
+
+impl GridPlane {
+    pub fn from_camera(camera: &OrbitCamera) -> Self {
+        match camera.aligned_axis() {
+            Some(a) if a.x != 0.0 => GridPlane::YZ,
+            Some(a) if a.y != 0.0 => GridPlane::XZ,
+            _ => GridPlane::XY,
+        }
+    }
+
+    pub fn normal(self) -> Vec3 {
+        match self {
+            GridPlane::XY => Vec3::Z,
+            GridPlane::XZ => Vec3::Y,
+            GridPlane::YZ => Vec3::X,
+        }
+    }
+
+    /// The two axes spanning the plane.
+    pub fn axes(self) -> [Vec3; 2] {
+        match self {
+            GridPlane::XY => [Vec3::X, Vec3::Y],
+            GridPlane::XZ => [Vec3::X, Vec3::Z],
+            GridPlane::YZ => [Vec3::Y, Vec3::Z],
+        }
+    }
+}
 
 /// Hammer-style grid: power-of-two size in units, with snapping.
 pub struct GridSettings {

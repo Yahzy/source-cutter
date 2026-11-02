@@ -39,6 +39,23 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
             ui.checkbox(&mut editor.grid.visible, "Show grid");
             ui.checkbox(&mut editor.view.show_player_reference, "Player reference");
             ui.separator();
+            let views = [
+                ("Top", glam::Vec3::Z),
+                ("Front", glam::Vec3::NEG_Y),
+                ("Right", glam::Vec3::X),
+                ("Bottom", glam::Vec3::NEG_Z),
+                ("Back", glam::Vec3::Y),
+                ("Left", glam::Vec3::NEG_X),
+            ];
+            for (name, dir) in views {
+                if ui.button(name).clicked() {
+                    editor.camera.look_from(dir);
+                }
+            }
+            if ui.button("Perspective / Ortho   5").clicked() {
+                editor.camera.toggle_projection();
+            }
+            ui.separator();
             if ui.button("Frame selection   F").clicked() {
                 editor.frame_selection();
             }

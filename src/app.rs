@@ -93,6 +93,9 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
         if i.key_pressed(Key::Escape) {
             editor.escape();
         }
+        if i.key_pressed(Key::Num5) && i.modifiers.is_none() {
+            editor.camera.toggle_projection();
+        }
         if i.key_pressed(Key::F) && i.modifiers.is_none() {
             editor.frame_selection();
         }
