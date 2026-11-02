@@ -12,18 +12,40 @@ pub struct Projector {
     inv_view_proj: Mat4,
     rect: Rect,
     eye: Vec3,
+    /// World units per pixel: constant in orthographic, per unit of depth in perspective.
+    pixel_scale: f32,
+    orthographic: bool,
 }
 
 impl Projector {
     pub fn new(camera: &OrbitCamera, rect: Rect) -> Self {
         let view = camera.view_matrix();
         let proj = camera.projection_matrix(rect.width() / rect.height().max(1.0));
-        Self { view, proj, inv_view_proj: (proj * view).inverse(), rect, eye: camera.render_eye() }
+        let height = rect.height().max(1.0);
+        let pixel_scale = if camera.orthographic {
+            2.0 * camera.half_height() / height
+        } else {
+            2.0 * (camera.fov_y * 0.5).tan() / height
+        };
+        Self {
+            view,
+            proj,
+            inv_view_proj: (proj * view).inverse(),
+            rect,
+            eye: camera.render_eye(),
+            pixel_scale,
+            orthographic: camera.orthographic,
+        }
     }
 
     /// Distance from the camera plane (bigger = farther). Used to sort faces.
     pub fn depth(&self, p: Vec3) -> f32 {
         -self.view.transform_point3(p).z
+    }
+
+    /// Size of one screen pixel in world units at this point (to draw constant-size handles).
+    pub fn pixel_size_at(&self, p: Vec3) -> f32 {
+        if self.orthographic { self.pixel_scale } else { self.pixel_scale * self.depth(p).max(OrbitCamera::NEAR) }
     }
 
     /// True when a face with this center and normal faces the camera.

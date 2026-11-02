@@ -69,10 +69,16 @@ fn handle_shortcuts(ctx: &egui::Context, editor: &mut Editor) {
             editor.new_scene();
         }
         if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::SHIFT, Key::S)) {
-            editor.tools.set_active(ToolKind::Select);
+            editor.set_tool(ToolKind::Select);
         }
         if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::SHIFT, Key::B)) {
-            editor.tools.set_active(ToolKind::Block);
+            editor.set_tool(ToolKind::Block);
+        }
+        if i.key_pressed(Key::G) && i.modifiers.is_none() {
+            editor.set_tool(ToolKind::Move);
+        }
+        if i.key_pressed(Key::S) && i.modifiers.is_none() {
+            editor.set_tool(ToolKind::Scale);
         }
         // Grid size: [ ] like Hammer, plus - / + for keyboards where brackets are awkward (AZERTY).
         if i.key_pressed(Key::OpenBracket) || i.key_pressed(Key::Minus) {

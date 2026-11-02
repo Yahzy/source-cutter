@@ -99,12 +99,6 @@ impl Mesh {
 
     // --- Editing ---------------------------------------------------------
 
-    pub fn translate(&mut self, offset: Vec3) {
-        for v in &mut self.vertices {
-            *v += offset;
-        }
-    }
-
     /// Stretches the mesh so its bounds become `target` (axes with no size are just moved).
     pub fn fit_to_bounds(&mut self, target: &Aabb) {
         let current = self.bounds();

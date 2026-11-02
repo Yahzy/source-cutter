@@ -17,7 +17,7 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
                 .on_hover_text(format!("{}  ({})", tool.label(), tool.shortcut()))
                 .clicked()
             {
-                editor.tools.set_active(tool);
+                editor.set_tool(tool);
             }
         }
     });

@@ -12,7 +12,7 @@ use glam::Vec3;
 
 use crate::math::Aabb;
 use crate::scene::Scene;
-use crate::tools::Tools;
+use crate::tools::{ToolKind, Tools};
 
 /// Viewport display toggles.
 pub struct ViewOptions {
@@ -39,8 +39,13 @@ pub struct Editor {
 }
 
 impl Editor {
+    pub fn set_tool(&mut self, tool: ToolKind) {
+        self.tools.cancel(&mut self.scene, &mut self.history);
+        self.tools.active = tool;
+    }
+
     pub fn new_scene(&mut self) {
-        self.tools.cancel();
+        self.tools.cancel(&mut self.scene, &mut self.history);
         self.history.checkpoint(&self.scene);
         self.scene = Scene::default();
     }
@@ -54,12 +59,12 @@ impl Editor {
     }
 
     pub fn undo(&mut self) {
-        self.tools.cancel();
+        self.tools.cancel(&mut self.scene, &mut self.history);
         self.history.undo(&mut self.scene);
     }
 
     pub fn redo(&mut self) {
-        self.tools.cancel();
+        self.tools.cancel(&mut self.scene, &mut self.history);
         self.history.redo(&mut self.scene);
     }
 
@@ -81,7 +86,7 @@ impl Editor {
 
     /// Escape: cancel the current tool action first, then clear the selection.
     pub fn escape(&mut self) {
-        if !self.tools.cancel() {
+        if !self.tools.cancel(&mut self.scene, &mut self.history) {
             self.scene.selection.clear();
         }
     }

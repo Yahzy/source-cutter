@@ -28,8 +28,15 @@ fn section(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
 fn tool_settings(ui: &mut Ui, editor: &mut Editor) {
     match editor.tools.active {
         ToolKind::Select => {
-            ui.label("Click an object to select it.
-Shift+click to add to the selection.");
+            ui.label("Click an object to select it.\nShift+click to add to the selection.");
+        }
+        ToolKind::Move => {
+            ui.label("Drag an arrow to move along an axis,\na square to move on a plane,\nthe circle to move on the grid plane.");
+            ui.small("Snaps the selection to the grid.");
+        }
+        ToolKind::Scale => {
+            ui.label("Drag a handle to resize the selection.\nThe opposite side stays in place.");
+            ui.small("The moved side snaps to the grid.");
         }
         ToolKind::Block => {
             ui.label("Drag on the grid to create a block.");

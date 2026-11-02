@@ -11,13 +11,16 @@ mod draw_scene;
 mod nav_gizmo;
 mod projector;
 
+pub use draw_grid::axis_color;
+pub use draw_scene::{draw_block_preview, draw_wire_box};
+pub use projector::Projector;
+
 use eframe::egui::{Align2, Color32, FontId, PointerButton, Rect, Response, Sense, Ui, vec2};
 use glam::Vec3;
 
 use crate::editor::{Editor, GridPlane};
 use crate::tools::{ToolInput, ToolKind};
 use nav_gizmo::GizmoAction;
-use projector::Projector;
 
 const BACKGROUND: Color32 = Color32::from_rgb(38, 39, 43);
 
@@ -39,10 +42,8 @@ pub fn show(ui: &mut Ui, editor: &mut Editor) {
     if editor.view.show_player_reference {
         draw_scene::draw_player_reference(&painter, &proj, &Editor::player_reference_bounds());
     }
+    editor.tools.draw(&painter, &proj, &editor.scene);
     if editor.tools.active == ToolKind::Block {
-        if let Some(bounds) = editor.tools.block.preview() {
-            draw_scene::draw_block_preview(&painter, &proj, &bounds);
-        }
         if let Some(cursor) = editor.cursor {
             let axes = GridPlane::from_camera(&editor.camera).axes();
             draw_scene::draw_cursor(&painter, &proj, cursor, axes, editor.grid.size() as f32 * 0.5);
@@ -101,6 +102,9 @@ fn update_tools(ui: &Ui, response: &Response, editor: &mut Editor, proj: &Projec
     editor.cursor = if response.hovered() { on_plane } else { None };
 
     let input = ToolInput {
+        proj,
+        grid: &editor.grid,
+        pointer,
         ray,
         plane,
         on_plane,

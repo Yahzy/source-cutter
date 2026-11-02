@@ -1,9 +1,12 @@
 use glam::Vec3;
 
+use eframe::egui::Painter;
+
 use super::ToolInput;
 use crate::editor::History;
 use crate::math::Aabb;
 use crate::scene::{Mesh, Scene};
+use crate::viewport::{Projector, draw_block_preview};
 
 /// Hammer's Block tool: drag on the work plane to draw a box,
 /// extruded along the plane normal by `height`.
@@ -58,6 +61,12 @@ impl BlockTool {
         let height = self.height.max(1.0);
         let bounds = Aabb::from_corners(drag.start, drag.end + drag.normal * height);
         (!bounds.is_degenerate()).then_some(bounds)
+    }
+
+    pub fn draw(&self, painter: &Painter, proj: &Projector) {
+        if let Some(bounds) = self.preview() {
+            draw_block_preview(painter, proj, &bounds);
+        }
     }
 
     pub fn cancel(&mut self) -> bool {
