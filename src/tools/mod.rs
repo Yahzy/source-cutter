@@ -42,15 +42,6 @@ impl ToolKind {
         }
     }
 
-    pub fn icon(self) -> &'static str {
-        match self {
-            ToolKind::Select => "↖",
-            ToolKind::Move => "✋",
-            ToolKind::Scale => "⤢",
-            ToolKind::Block => "⬛",
-        }
-    }
-
     pub fn shortcut(self) -> &'static str {
         match self {
             ToolKind::Select => "Shift+S",

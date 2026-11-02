@@ -9,3 +9,4 @@ repository = "https://github.com/Yahzy/source-cutter"
 [dependencies]
 eframe = "0.37.0"
 glam = "0.34.2"
+image = { version = "0.25.10", default-features = false, features = ["png"] }

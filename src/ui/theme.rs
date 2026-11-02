@@ -3,6 +3,7 @@
 use eframe::egui::{self, Color32, CornerRadius, Stroke, Visuals};
 
 pub const ACCENT: Color32 = Color32::from_rgb(70, 135, 230);
+pub const ACCENT_LIGHT: Color32 = Color32::from_rgb(120, 175, 255);
 pub const PANEL: Color32 = Color32::from_rgb(28, 29, 32);
 pub const PANEL_DARK: Color32 = Color32::from_rgb(22, 23, 25);
 

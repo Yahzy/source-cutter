@@ -9,6 +9,7 @@ use crate::{ui, viewport};
 
 pub struct SourceCutterApp {
     editor: Editor,
+    icons: ui::icons::Icons,
     /// Tab was pressed this frame (taken from egui, see `raw_input_hook`).
     tab_pressed: bool,
 }
@@ -16,7 +17,7 @@ pub struct SourceCutterApp {
 impl SourceCutterApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         ui::theme::apply(&cc.egui_ctx);
-        Self { editor: Editor::default(), tab_pressed: false }
+        Self { editor: Editor::default(), icons: ui::icons::Icons::load(&cc.egui_ctx), tab_pressed: false }
     }
 }
 
@@ -57,7 +58,7 @@ impl eframe::App for SourceCutterApp {
             .resizable(false)
             .exact_size(46.0)
             .frame(dark_frame)
-            .show(ui, |ui| ui::tool_strip::show(ui, editor));
+            .show(ui, |ui| ui::tool_strip::show(ui, editor, &self.icons));
 
         egui::Panel::right("properties")
             .default_size(270.0)
